@@ -11,30 +11,34 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Product } from "./../../app/modules/Product";
-import agent from "./../../app/api/agent";
 import NotFound from "../../app/errors/NotFound";
 import Loading from "../../app/layout/Loading";
-import { useStoreContext } from "../../app/context/StoreContext";
 import { LoadingButton } from "@mui/lab";
+import { useAppDispatch, useAppSelector } from "../../app/store/configureStore";
+import {
+  addBasketItemAsync,
+  removeBasketItemAsync,
+} from "../basket/basketSlice";
+import { fetchProductAsync, productSelectors } from "./catalogSlice";
+
 export default function ProductDetails() {
-  const { basket, setBasket, removeItem } = useStoreContext();
+  const { basket, status } = useAppSelector((state) => state.basket);
+  const { status: productStaus } = useAppSelector((state) => state.catalog);
+  const dispatch = useAppDispatch();
   const { id } = useParams<{ id: string }>();
-  const [produt, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
+  // const [produt, setProduct] = useState<Product | null>(null);
+  const product = useAppSelector((state) =>
+    productSelectors.selectById(state, id)
+  );
 
   const [quantity, setQuantity] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
 
-  const item = basket?.items.find((i) => i.productID === produt?.id);
+  const item = basket?.items.find((i) => i.productID === product?.id);
 
   useEffect(() => {
     if (item) setQuantity(item.quantity);
-    agent.Catalog.details(parseInt(id))
-      .then((res) => setProduct(res))
-      .catch((err) => console.log(err))
-      .finally(() => setLoading(false));
-  }, [id, item]);
+    if (!product) dispatch(fetchProductAsync({ productId: parseInt(id) }));
+  }, [id, item, dispatch, product]);
 
   function handleTextChange(event: any) {
     const value = event.target.value;
@@ -44,36 +48,43 @@ export default function ProductDetails() {
   }
 
   function handleUpdateCart() {
-    setSubmitting(true);
     if (!item || quantity > item.quantity) {
       const updatedQuantity = item ? quantity - item.quantity : quantity;
-      agent.Basket.addItem(produt?.id!, updatedQuantity)
-        .then((basket) => setBasket(basket))
-        .catch((er) => console.log(er))
-        .finally(() => setSubmitting(false));
+      dispatch(
+        addBasketItemAsync({
+          productId: product?.id!,
+          quantity: updatedQuantity,
+        })
+      );
     } else {
       const updatedQuantity = item.quantity - quantity;
-      agent.Basket.removeItem(produt?.id!, updatedQuantity)
-        .then(() => removeItem(produt?.id!, updatedQuantity))
-        .catch((er) => console.log(er))
-        .finally(() => setSubmitting(false));
+      dispatch(
+        removeBasketItemAsync({
+          productId: product?.id!,
+          quantity: updatedQuantity,
+        })
+      );
     }
   }
 
-  if (loading) return <Loading />;
+  if (productStaus.includes("pending")) return <Loading />;
 
-  if (!produt) return <NotFound />;
+  if (!product) return <NotFound />;
 
   return (
     <Grid container spacing={6}>
       <Grid item xs={6}>
-        <img src={produt.picture} alt={produt.name} style={{ width: "100%" }} />
+        <img
+          src={product.picture}
+          alt={product.name}
+          style={{ width: "100%" }}
+        />
       </Grid>
       <Grid item xs={6}>
-        <Typography variant="h3">{produt.name}</Typography>
+        <Typography variant="h3">{product.name}</Typography>
         <Divider sx={{ mb: 2 }} />
         <Typography variant="h3" color="secondary">
-          ${(produt.price / 100).toFixed(2)}
+          ${(product.price / 100).toFixed(2)}
         </Typography>
 
         <TableContainer>
@@ -81,23 +92,23 @@ export default function ProductDetails() {
             <TableBody>
               <TableRow>
                 <TableCell>Name</TableCell>
-                <TableCell>{produt.name}</TableCell>
+                <TableCell>{product.name}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Description</TableCell>
-                <TableCell>{produt.description}</TableCell>
+                <TableCell>{product.description}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Type</TableCell>
-                <TableCell>{produt.type}</TableCell>
+                <TableCell>{product.type}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Brand</TableCell>
-                <TableCell>{produt.brand}</TableCell>
+                <TableCell>{product.brand}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Quantity In Stock</TableCell>
-                <TableCell>{produt.quantityInStock}</TableCell>
+                <TableCell>{product.quantityInStock}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -117,7 +128,7 @@ export default function ProductDetails() {
               disabled={
                 item?.quantity === quantity || (!item && quantity === 0)
               }
-              loading={submitting}
+              loading={status.includes("pending")}
               onClick={handleUpdateCart}
               sx={{ height: "55px" }}
               color="primary"

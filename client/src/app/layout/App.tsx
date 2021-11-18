@@ -19,12 +19,13 @@ import ServerError from "./../errors/ServerError";
 import NotFound from "./../errors/NotFound";
 import CheckOutPage from "../../features/checkout/CheckOutPage";
 import { getCookie } from "./../util/util";
-import { useStoreContext } from "../context/StoreContext";
 import agent from "../api/agent";
 import Loading from "./Loading";
+import { useAppDispatch } from "../store/configureStore";
+import { setBasket } from "../../features/basket/basketSlice";
 
 function App() {
-  const { setBasket } = useStoreContext();
+  const dispatch = useAppDispatch();
 
   const [loading, setLoading] = useState(true);
 
@@ -33,11 +34,11 @@ function App() {
 
     if (buyerId) {
       agent.Basket.get()
-        .then((basket) => setBasket(basket))
+        .then((basket) => dispatch(setBasket(basket)))
         .catch((er) => console.log(er))
         .finally(() => setLoading(false));
     } else setLoading(false);
-  }, [setBasket]);
+  }, [dispatch]);
 
   const [darkMode, setDarkMode] = useState(false);
 
